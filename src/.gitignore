@@ -1,0 +1,4 @@
+.deps
+coapfs_server
+coapfs_server-coapfs-server.o
+coapfs_server-log.o
