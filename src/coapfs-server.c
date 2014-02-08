@@ -32,15 +32,21 @@ void hnd_put_index(coap_context_t *ctx, struct coap_resource_t *resource,
 	coap_get_data(request, &size, &data);
 
 	fd = open(resource->uri.s, O_WRONLY);
-	if (fd == -1)
+	if (fd == -1) {
 		response->hdr->code = COAP_RESPONSE_CODE(500);
+		return;
+	}
 
 	ret = write(fd, data, size);
-	if (ret == -1)
+	if (ret == -1) {
 		response->hdr->code = COAP_RESPONSE_CODE(500);
+		goto err_close;
+	}
+
 	log_print(DEBUG, "file %s, write %s, size %d\n",
 			resource->uri.s, data, size);
 
+err_close:
 	close(fd);
 }
 
@@ -55,16 +61,21 @@ void hnd_get_index(coap_context_t *ctx, struct coap_resource_t *resource,
 	response->hdr->code = COAP_RESPONSE_CODE(205);
 
 	fd = open(resource->uri.s, O_RDONLY);
-	if (fd == -1)
+	if (fd == -1) {
 		response->hdr->code = COAP_RESPONSE_CODE(500);
+		return;
+	}
 
 	ret = read(fd, buf, MAX_FILE_READ - 1);
-	if (ret == -1)
+	if (ret == -1) {
 		response->hdr->code = COAP_RESPONSE_CODE(500);
+		goto err_close;
+	}
 
 	log_print(DEBUG, "file %s, read %s, len: %d\n", resource->uri.s, buf, ret);
 	coap_add_data(response, ret, (unsigned char *)buf);
 	
+err_close:
 	close(fd);
 }
 
@@ -100,8 +111,8 @@ static int dirwalk(const char *dir, const char *dir_rel, void (*fcn)(const char 
 		if (S_ISDIR(st.st_mode)) {
 			dirwalk(name, path, fcn);
 		} else {
-			strcpy(path, path + 1);
-			(*fcn)(path);
+			/* remove first char */
+			(*fcn)(path + 1);
 		}
 	}
 
