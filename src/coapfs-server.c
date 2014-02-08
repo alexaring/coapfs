@@ -68,9 +68,9 @@ void hnd_get_index(coap_context_t *ctx, struct coap_resource_t *resource,
 	close(fd);
 }
 
-static int dirwalk(char *dir, void (*fcn)(const char *))
+static int dirwalk(const char *dir, const char *dir_rel, void (*fcn)(const char *))
 {
-	char *name;
+	char name[PATH_MAX], path[PATH_MAX];
 	struct stat st;
 	struct dirent *dp;
 	DIR *dfd;
@@ -87,19 +87,21 @@ static int dirwalk(char *dir, void (*fcn)(const char *))
 				|| !strcmp(dp->d_name, ".."))
 			continue;
 
-		name = malloc(PATH_MAX);
 		sprintf(name, "%s/%s", dir, dp->d_name);
-		
+
 		ret = lstat(name, &st);
 		if (ret == -1) {
 			log_print(ERROR, "Can't stat %s", name);
 			continue;
 		}
 
+		sprintf(path, "%s/%s", dir_rel, dp->d_name);
+
 		if (S_ISDIR(st.st_mode)) {
-			dirwalk(name, fcn);
+			dirwalk(name, path, fcn);
 		} else {
-			(*fcn)(name);
+			strcpy(path, path + 1);
+			(*fcn)(path);
 		}
 	}
 
@@ -168,7 +170,7 @@ int main(int argc, char *argv[])
 	coap_queue_t *nextpdu;
 	char addr_str[NI_MAXHOST] = "127.0.0.1";
 	char port_str[NI_MAXSERV] = "5683";
-	char dir[PATH_MAX];
+	char dir[PATH_MAX], dir_rel[PATH_MAX] = "";
 	struct timeval tv;
 	coap_resource_t *r;
 
@@ -211,7 +213,7 @@ int main(int argc, char *argv[])
 	if (!ctx)
 		return EXIT_FAILURE;
 
-	err = dirwalk(dir, fcn);
+	err = dirwalk(dir, dir_rel, fcn);
 	if (err < 0)
 		return EXIT_FAILURE;
 
