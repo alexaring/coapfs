@@ -25,14 +25,18 @@ void hnd_put_index(coap_context_t *ctx, struct coap_resource_t *resource,
 	int fd;
 	size_t size;
 	ssize_t ret;
+	char path[PATH_MAX] = {};
 	unsigned char *data;
 
 	response->hdr->code = COAP_RESPONSE_CODE(204);
-
 	resource->dirty = 1;
 	coap_get_data(request, &size, &data);
 
-	fd = open(resource->uri.s, O_WRONLY);
+	strcat(path, dir);
+	strcat(path, "/");
+	strncat(path, resource->uri.s, resource->uri.length);
+
+	fd = open(path, O_WRONLY);
 	if (fd == -1) {
 		response->hdr->code = COAP_RESPONSE_CODE(500);
 		return;
