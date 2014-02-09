@@ -12,8 +12,9 @@
 #include <log.h>
 #include <coap.h>
 
-#define MAX_FILE_READ 256
+#define MAX_FILE_READ 512
 
+static char dir[PATH_MAX], dir_rel[PATH_MAX] = "";
 static coap_context_t *ctx;
 static int end;
 
@@ -56,11 +57,18 @@ void hnd_get_index(coap_context_t *ctx, struct coap_resource_t *resource,
 {
 	int fd;
 	ssize_t ret;
-	unsigned char buf[MAX_FILE_READ] = {};
+	char path[PATH_MAX] = {};
+	unsigned char buf[MAX_FILE_READ];
 
 	response->hdr->code = COAP_RESPONSE_CODE(205);
 
-	fd = open(resource->uri.s, O_RDONLY);
+	strcat(path, dir);
+	strcat(path, "/");
+	strncat(path, resource->uri.s, resource->uri.length);
+
+	log_print(DEBUG, "get from %s\n", path);
+
+	fd = open(path, O_RDONLY);
 	if (fd == -1) {
 		response->hdr->code = COAP_RESPONSE_CODE(500);
 		return;
@@ -71,8 +79,9 @@ void hnd_get_index(coap_context_t *ctx, struct coap_resource_t *resource,
 		response->hdr->code = COAP_RESPONSE_CODE(500);
 		goto err_close;
 	}
+	buf[ret] = '\0';
 
-	log_print(DEBUG, "file %s, read %s, len: %d\n", resource->uri.s, buf, ret);
+	log_print(DEBUG, "file %s, read %s, len: %d\n", path, buf, ret);
 	coap_add_data(response, ret, (unsigned char *)buf);
 	
 err_close:
@@ -122,9 +131,16 @@ static int dirwalk(const char *dir, const char *dir_rel, void (*fcn)(const char 
 static void fcn(const char *str)
 {
 	coap_resource_t *r = NULL;
+	char *heap_str;
+	size_t heap_str_len;
 
-	log_print(DEBUG, "%s %d\n", str, strlen(str));
-	r = coap_resource_init(str, strlen(str), 0);
+	heap_str_len = strlen(str);
+	heap_str = malloc(heap_str_len);
+	strcpy(heap_str, str);
+
+	log_print(DEBUG, "add resource: %s strlen: %d\n", heap_str, heap_str_len);
+
+	r = coap_resource_init(heap_str, heap_str_len, COAP_RESOURCE_FLAGS_RELEASE_URI);
 	coap_register_handler(r, COAP_REQUEST_GET, hnd_get_index);
 	coap_register_handler(r, COAP_REQUEST_PUT, hnd_put_index);
 	coap_add_attr(r, (unsigned char *)"ct", 2, (unsigned char *)"0", 1, 0);
@@ -181,7 +197,6 @@ int main(int argc, char *argv[])
 	coap_queue_t *nextpdu;
 	char addr_str[NI_MAXHOST] = "127.0.0.1";
 	char port_str[NI_MAXSERV] = "5683";
-	char dir[PATH_MAX], dir_rel[PATH_MAX] = "";
 	struct timeval tv;
 	coap_resource_t *r;
 
@@ -206,8 +221,13 @@ int main(int argc, char *argv[])
 	log_set_log_level(INFO | ERROR);
 
 	if (optind >= argc) {
-		log_print(INFO, "Please add a directory.\n"
+		log_print(ERROR, "Please add a directory.\n"
 				"WARNING: Not a directory with a high hierarchy)\n");
+		return EXIT_FAILURE;
+	}
+
+	if (argv[optind][0] != '/') {
+		log_print(ERROR, "Please take a absolute path.\n");
 		return EXIT_FAILURE;
 	}
 
