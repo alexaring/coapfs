@@ -134,8 +134,8 @@ static void fcn(const char *str)
 	char *heap_str;
 	size_t heap_str_len;
 
-	heap_str_len = strlen(str) + 1;
-	heap_str = malloc(heap_str_len);
+	heap_str_len = strlen(str);
+	heap_str = malloc(heap_str_len + 1);
 	strcpy(heap_str, str);
 
 	log_print(DEBUG, "add resource: %s strlen: %d\n", heap_str, heap_str_len);
